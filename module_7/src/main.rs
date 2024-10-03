@@ -1,6 +1,6 @@
 // How can I handle error responses in my API?
 use actix_web::{get, post, web, App, HttpServer, Responder, HttpResponse, ResponseError};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use std::fmt;
 
@@ -49,7 +49,7 @@ async fn greet(name: web::Path<String>) -> Result<String, MyError> {
 }
 
 // Define a struct to represent the JSON payload
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct EchoRequest {
     message: String,
 }

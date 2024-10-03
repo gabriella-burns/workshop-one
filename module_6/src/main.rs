@@ -1,6 +1,6 @@
 // How can I handle request body in my API?
 use actix_web::{get, post, web, App, HttpServer, Responder, HttpResponse};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 // Existing endpoint
 #[get("/")]
@@ -21,7 +21,7 @@ async fn greet(name: web::Path<String>) -> impl Responder {
 }
 
 // Define a struct to represent the JSON payload
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct EchoRequest {
     message: String,
 }
