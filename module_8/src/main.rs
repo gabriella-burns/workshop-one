@@ -1,8 +1,9 @@
 // How can I handle authentication and authorization in my API?
-use actix_web::{get, post, web, App, HttpServer, Responder, HttpResponse};
-use serde::Deserialize;
+use actix_web::{get, post, web, App, HttpServer, Responder, HttpResponse, Error};
+use serde::{Deserialize, Serialize};
 mod auth;
 use auth::Auth;
+use::futures_util;
 
 // Existing endpoint
 #[get("/")]
@@ -23,7 +24,7 @@ async fn greet(name: web::Path<String>) -> impl Responder {
 }
 
 // Define a struct to represent the JSON payload
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct EchoRequest {
     message: String,
 }
@@ -35,7 +36,7 @@ async fn echo(req: web::Json<EchoRequest>) -> impl Responder {
 }
 
 // Define a struct to represent the query parameters
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct SearchQuery {
     q: String,
     page: Option<u32>,
@@ -62,25 +63,6 @@ async fn submit(req: web::Json<SubmitRequest>) -> impl Responder {
     format!("Received: name = {}, age = {}", data.name, data.age)
 }
 
-// New endpoint: /upload
-#[post("/upload")]
-async fn upload(mut payload: Multipart) -> Result<HttpResponse, Error> {
-    while let Some(item) = payload.try_next().await? {
-        let mut field = item;
-        let content_disposition = field.content_disposition().unwrap();
-        let filename = content_disposition.get_filename().unwrap();
-
-        let filepath = format!("./uploads/{}", sanitize_filename::sanitize(&filename));
-        let mut f = web::block(|| std::fs::File::create(filepath)).await??;
-
-        while let Some(chunk) = field.next().await {
-            let data = chunk?;
-            f = web::block(move || f.write_all(&data).map(|_| f)).await??;
-        }
-    }
-    Ok(HttpResponse::Ok().body("File uploaded successfully"))
-}
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
@@ -92,7 +74,6 @@ async fn main() -> std::io::Result<()> {
             .service(echo)
             .service(search)
             .service(submit)
-            .service(upload)
     })
     .bind("127.0.0.1:8080")?
     .run()
