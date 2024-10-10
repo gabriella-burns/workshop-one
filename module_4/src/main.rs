@@ -1,62 +1,44 @@
-// How can I handle query parameters in my API?
-
-use actix_web::{get, post, web, App, HttpServer, Responder, HttpResponse};
+use axum::{
+    extract::{Json, Query},
+    response::IntoResponse,
+    routing::{get, post},
+    Router,
+};
 use serde::{Deserialize, Serialize};
-// Existing endpoint
-#[get("/")]
-async fn hello() -> impl Responder {
-    "Hello, world!"
-}
+use std::net::SocketAddr;
+use tokio;
 
-// New endpoint: /goodbye
-#[get("/goodbye")]
-async fn goodbye() -> impl Responder {
-    "Goodbye, world!"
-}
-
-// New endpoint: /greet/{name}
-#[get("/greet/{name}")]
-async fn greet(name: web::Path<String>) -> impl Responder {
-    format!("Hello, {}!", name)
-}
-
-// Define a struct to represent the JSON payload
 #[derive(Deserialize, Serialize)]
 struct EchoRequest {
     message: String,
 }
 
-// New endpoint: /echo
-#[post("/echo")]
-async fn echo(req: web::Json<EchoRequest>) -> impl Responder {
-    HttpResponse::Ok().json(req.into_inner())
+async fn echo(Json(payload): Json<EchoRequest>) -> impl IntoResponse {
+    axum::Json(payload)
 }
 
-// Define a struct to represent the query parameters
 #[derive(Deserialize)]
 struct SearchQuery {
     q: String,
     page: Option<u32>,
 }
 
-// New endpoint: /search
-#[get("/search")]
-async fn search(query: web::Query<SearchQuery>) -> impl Responder {
-    let page = query.page.unwrap_or(1);
-    format!("Search query: {}, Page: {}", query.q, page)
+async fn search(Query(params): Query<SearchQuery>) -> impl IntoResponse {
+    let page = params.page.unwrap_or(1);
+    format!("Search query: {}, Page: {}", params.q, page)
 }
 
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| {
-        App::new()
-            .service(hello)
-            .service(goodbye)
-            .service(greet)
-            .service(echo)
-            .service(search)
-    })
-    .bind("127.0.0.1:8080")?
-    .run()
-    .await
+#[tokio::main]
+async fn main() {
+    let app = Router::new()
+        .route("/echo", post(echo))
+        .route("/search", get(search));
+
+    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    println!("Listening on {}", addr);
+
+    axum::Server::bind(&addr)
+        .serve(app.into_make_service())
+        .await
+        .unwrap();
 }

@@ -42,7 +42,7 @@ async fn main() -> std::io::Result<()> {
             .service(greet)
             .service(echo)
     })
-    .bind("127.0.0.1:8080")?
+    .bind("127.0.0.1:8080")? 
     .run()
     .await
 }

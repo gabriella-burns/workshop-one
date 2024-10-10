@@ -1,75 +1,35 @@
-// How can I handle request headers in my API?
+#[macro_use]
+extern crate rocket;
 
-use actix_web::{get, post, web, App, HttpServer, Responder, HttpResponse, HttpRequest};
-use serde::{Deserialize, Serialize};
+use rocket::http::Status;
+use rocket::request::{FromRequest, Outcome, Request};
+use rocket::response::content::RawJson;
 
-// Existing endpoint
-#[get("/")]
-async fn hello() -> impl Responder {
-    "Hello, world!"
-}
+struct CustomHeader<'r>(&'r str);
 
-// New endpoint: /goodbye
-#[get("/goodbye")]
-async fn goodbye() -> impl Responder {
-    "Goodbye, world!"
-}
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for CustomHeader<'r> {
+    type Error = Status;
 
-// New endpoint: /greet/{name}
-#[get("/greet/{name}")]
-async fn greet(name: web::Path<String>) -> impl Responder {
-    format!("Hello, {}!", name)
-}
-
-// Define a struct to represent the JSON payload
-#[derive(Deserialize, Serialize)]
-struct EchoRequest {
-    message: String,
-}
-
-// New endpoint: /echo
-#[post("/echo")]
-async fn echo(req: web::Json<EchoRequest>) -> impl Responder {
-    HttpResponse::Ok().json(req.into_inner())
-}
-
-// Define a struct to represent the query parameters
-#[derive(Deserialize)]
-struct SearchQuery {
-    q: String,
-    page: Option<u32>,
-}
-
-// New endpoint: /search
-#[get("/search")]
-async fn search(query: web::Query<SearchQuery>) -> impl Responder {
-    let page = query.page.unwrap_or(1);
-    format!("Search query: {}, Page: {}", query.q, page)
-}
-
-// New endpoint: /headers
-#[get("/headers")]
-async fn headers(req: HttpRequest) -> impl Responder {
-    if let Some(header_value) = req.headers().get("X-Custom-Header") {
-        if let Ok(header_str) = header_value.to_str() {
-            return HttpResponse::Ok().body(format!("X-Custom-Header: {}", header_str));
+    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
+        match request.headers().get_one("X-Custom-Header") {
+            Some(value) => Outcome::Success(CustomHeader(value)),
+            None => Outcome::Error((Status::BadRequest, Status::BadRequest)),
         }
     }
-    HttpResponse::BadRequest().body("X-Custom-Header not found or invalid")
 }
 
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| {
-        App::new()
-            .service(hello)
-            .service(goodbye)
-            .service(greet)
-            .service(echo)
-            .service(search)
-            .service(headers)
-    })
-    .bind("127.0.0.1:8080")?
-    .run()
-    .await
+#[get("/headers")]
+fn headers(
+    custom_header: Result<CustomHeader, Status>,
+) -> Result<RawJson<String>, Status> {
+    match custom_header {
+        Ok(CustomHeader(value)) => Ok(RawJson(format!("{{\"X-Custom-Header\": \"{}\"}}", value))),
+        Err(_) => Err(Status::BadRequest),
+    }
+}
+
+#[launch]
+fn rocket() -> _ {
+    rocket::build().mount("/", routes![headers])
 }
